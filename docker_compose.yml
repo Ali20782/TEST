@@ -1,74 +1,54 @@
 version: '3.8'
 
 services:
-  # PostgreSQL with PGVector Extension
-  postgres:
-    image: pgvector/pgvector:pg16
-    container_name: process_mining_db
+  # ----------------------------------------------------
+  # PostgreSQL Database Service (with PGVector Extension)
+  # ----------------------------------------------------
+  db:
+    image: ankane/postgres-arm64-vector:latest # Recommended image with PGVector pre-installed
+    restart: always
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-process_admin}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secure_password_change_me}
-      POSTGRES_DB: ${POSTGRES_DB:-process_mining}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+      # The extension will be enabled by the backend on startup
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql
+      - pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-process_admin} -d ${POSTGRES_DB:-process_mining}"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
       timeout: 5s
       retries: 5
-    networks:
-      - process_mining_network
 
-  # FastAPI Backend Application
+  # ----------------------------------------------------
+  # FastAPI Backend Service
+  # ----------------------------------------------------
   backend:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: process_mining_api
+    restart: always
     environment:
-      # Database Configuration
-      DATABASE_URL: postgresql://${POSTGRES_USER:-process_admin}:${POSTGRES_PASSWORD:-secure_password_change_me}@postgres:5432/${POSTGRES_DB:-process_mining}
-      
-      # Application Settings
-      APP_ENV: ${APP_ENV:-development}
-      LOG_LEVEL: ${LOG_LEVEL:-info}
-      
-      # File Upload Settings
-      MAX_UPLOAD_SIZE: ${MAX_UPLOAD_SIZE:-100}  # MB
-      ALLOWED_EXTENSIONS: csv,xlsx,xls,txt,docx,pdf
-      
-      # Embedding Model
-      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-all-MiniLM-L6-v2}
-      
-      # Security
-      SECRET_KEY: ${SECRET_KEY:-your-secret-key-change-in-production}
-      
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      # Set API Key environment variable for later RAG steps
+      GEMINI_API_KEY: ${GEMINI_API_KEY} 
     ports:
       - "8000:8000"
-    volumes:
-      - ./data:/app/data
-      - ./uploads:/app/uploads
-      - ./logs:/app/logs
     depends_on:
-      postgres:
+      db:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
+      interval: 10s
+      timeout: 5s
       retries: 3
-      start_period: 40s
-    networks:
-      - process_mining_network
-    restart: unless-stopped
+      start_period: 20s
 
 volumes:
-  postgres_data:
-    driver: local
-
-networks:
-  process_mining_network:
-    driver: bridge
+  pg_data:

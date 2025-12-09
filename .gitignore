@@ -1,3 +1,32 @@
+# CRITICAL: Secrets and Environment
+.env
+
+# VIRTUAL ENVIRONMENTS
 **/.venv/
+venv/
+env/
+
+# PYTHON ARTIFACTS
 **/__pycache__/
-**/data/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+
+# TESTING FRAMEWORK ARTIFACTS (Pytest)
+.pytest_cache/
+
+# BUILD/DISTRIBUTION ARTIFACTS
+build/
+dist/
+
+# DATA 
+**/data/ 
+
+# CRITICAL DOCKER/POSTGRES ARTIFACTS
+pg_data/ 
+
+# IDE / EDITOR FILES
+.idea/      # PyCharm
+.vscode/    # VS Code
+.DS_Store

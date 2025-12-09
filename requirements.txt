@@ -2,8 +2,14 @@ pandas>=1.0.0
 pm4py>=2.6.0  # Process Mining for Python
 matplotlib==3.8.2
 
-# Standard Library Modules (Do not require installation)
-# datetime
-# os
-# random
-# pathlib
+fastapi
+uvicorn[standard]
+psycopg2-binary # PostgreSQL adapter
+pandas
+openpyxl # For reading XLSX files in pandas
+python-docx # For reading DOCX files
+python-dotenv # For loading environment variables
+
+pytest # Added for running tests
+httpx # Added for making asynchronous requests to FastAPI
+pytest-asyncio # Added for running async tests
