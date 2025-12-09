@@ -1,0 +1,9 @@
+pandas>=1.0.0
+pm4py>=2.6.0  # Process Mining for Python
+matplotlib==3.8.2
+
+# Standard Library Modules (Do not require installation)
+# datetime
+# os
+# random
+# pathlib
