@@ -5,8 +5,7 @@ services:
   # PostgreSQL Database Service (with PGVector Extension)
   # ----------------------------------------------------
   db:
-    # Will use the standard postgres image and add the pgvector extension 
-    image: pgvector/pgvector:pg15 #postgres:15 # <--- CHANGED FROM postgres:15-alpine
+    image: pgvector/pgvector:pg15
     
     restart: always
     environment:
@@ -16,8 +15,6 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      # Add a volume to inject the custom setup script
-      # - ./docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
       - pg_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
