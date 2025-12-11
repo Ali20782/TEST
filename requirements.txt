@@ -8,6 +8,7 @@ psycopg2-binary # PostgreSQL adapter
 pandas
 openpyxl # For reading XLSX files in pandas
 python-docx # For reading DOCX files
+python-multipart
 python-dotenv # For loading environment variables
 
 pytest # Added for running tests

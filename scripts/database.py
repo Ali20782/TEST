@@ -48,7 +48,7 @@ def setup_db(conn):
                 id SERIAL PRIMARY KEY,
                 doc_name VARCHAR(255) NOT NULL,
                 text_chunk TEXT NOT NULL,
-                # The vector type is enabled by the 'vector' extension
+                -- The vector type is enabled by the 'vector' extension
                 embedding vector(384) 
             );
         """)

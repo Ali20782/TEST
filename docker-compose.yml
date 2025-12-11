@@ -5,23 +5,25 @@ services:
   # PostgreSQL Database Service (with PGVector Extension)
   # ----------------------------------------------------
   db:
-    image: ankane/postgres-arm64-vector:latest # Recommended image with PGVector pre-installed
+    # Will use the standard postgres image and add the pgvector extension 
+    image: pgvector/pgvector:pg15 #postgres:15 # <--- CHANGED FROM postgres:15-alpine
+    
     restart: always
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
-      # The extension will be enabled by the backend on startup
     ports:
       - "5432:5432"
     volumes:
+      # Add a volume to inject the custom setup script
+      # - ./docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
       - pg_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       timeout: 5s
       retries: 5
-
   # ----------------------------------------------------
   # FastAPI Backend Service
   # ----------------------------------------------------
