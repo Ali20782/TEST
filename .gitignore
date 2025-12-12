@@ -8,6 +8,7 @@ env/
 
 # PYTHON ARTIFACTS
 **/__pycache__/
+**/.pytest_cache/
 *.pyc
 *.pyo
 *.pyd

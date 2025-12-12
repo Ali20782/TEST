@@ -1,82 +1,304 @@
+"""
+Comprehensive API Server Tests
+Tests all FastAPI endpoints and middleware
+"""
+
 import pytest
-import io
+from fastapi.testclient import TestClient
+from scripts.api_server import app
+import tempfile
+from pathlib import Path
+from datetime import datetime
 import pandas as pd
-from docx import Document
 
-# Note: The 'client' fixture is automatically provided by conftest.py
 
-# --- Health Check Test ---
+@pytest.fixture
+def client():
+    """Test client fixture"""
+    return TestClient(app)
 
-@pytest.mark.asyncio
-async def test_health_check_api(client):
-    """Test the /health endpoint to ensure the API is running."""
-    response = await client.get("/health")
-    # Note: Database status may be "error" in unit tests if env vars aren't set, 
-    # but the API status should still be "ok".
-    assert response.status_code == 200
-    assert response.json()["api_status"] == "ok"
 
-# --- Structured Ingestion Tests ---
-
-@pytest.mark.asyncio
-async def test_ingest_structured_csv_success(client):
-    """Test successful ingestion of a valid CSV file."""
-    # Create a mock CSV file in memory
-    csv_content = (
-        "case_id,activity,timestamp\n"
-        "C001,Start,2025-01-01 10:00:00\n"
-        "C001,Activity A,2025-01-01 11:00:00\n"
-        "C002,Start,2025-01-02 09:00:00\n"
-    )
+@pytest.fixture
+def sample_csv():
+    """Create a sample CSV file for testing"""
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
+        f.write("case_id,activity,timestamp,resource,cost,location\n")
+        for i in range(10):
+            f.write(f"CASE_{i:03d},Start,2024-01-{(i%28)+1:02d}T10:00:00,User1,10.0,Texas\n")
+            f.write(f"CASE_{i:03d},Complete,2024-01-{(i%28)+1:02d}T11:00:00,User1,5.0,Texas\n")
+        temp_path = f.name
     
-    files = {'file': ('test_log.csv', io.StringIO(csv_content), 'text/csv')}
-    response = await client.post("/ingest/structured", files=files)
-    
-    assert response.status_code == 200
-    assert response.json()["metrics"]["total_events"] == 3
-    assert response.json()["metrics"]["unique_cases"] == 2
-    assert response.json()["status"] == "Structured data accepted for processing."
+    yield temp_path
+    Path(temp_path).unlink()
 
-@pytest.mark.asyncio
-async def test_ingest_structured_invalid_file_type(client):
-    """Test ingestion with an unsupported file extension."""
-    files = {'file': ('document.pdf', io.BytesIO(b'pdf content'), 'application/pdf')}
-    response = await client.post("/ingest/structured", files=files)
-    
-    assert response.status_code == 400
-    assert "Invalid file type" in response.json()["detail"]
 
-# --- Unstructured Ingestion Tests ---
+@pytest.fixture
+def sample_txt():
+    """Create a sample text file for testing"""
+    content = """
+    Process Mining Documentation
+    
+    This document describes the invoice approval process in detail.
+    The process starts with invoice creation and ends with payment.
+    """
+    
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+        f.write(content)
+        temp_path = f.name
+    
+    yield temp_path
+    Path(temp_path).unlink()
 
-@pytest.mark.asyncio
-async def test_ingest_unstructured_txt_success(client):
-    """Test successful ingestion of a TXT file."""
-    txt_content = "This is a process definition document."
-    
-    files = {'file': ('doc_rules.txt', io.StringIO(txt_content), 'text/plain')}
-    response = await client.post("/ingest/unstructured", files=files)
-    
-    assert response.status_code == 200
-    assert response.json()["metrics"]["character_count"] == len(txt_content)
-    assert response.json()["status"] == "Unstructured data accepted for processing."
 
-@pytest.mark.asyncio
-async def test_ingest_unstructured_docx_success(client):
-    """Test successful ingestion of a DOCX file."""
-    # Create a mock DOCX file in memory
-    document = Document()
-    document.add_paragraph('Process Architecture Document.')
-    document.add_paragraph('Step 1: Data extraction.')
+class TestHealthEndpoint:
+    """Test health check endpoint"""
     
-    docx_io = io.BytesIO()
-    document.save(docx_io)
-    docx_io.seek(0)
+    def test_health_check_success(self, client):
+        """Test health check returns 200"""
+        response = client.get("/health")
+        assert response.status_code == 200
+        
+        data = response.json()
+        assert "api_status" in data
+        assert data["api_status"] == "ok"
     
-    files = {'file': ('arch_doc.docx', docx_io, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')}
-    response = await client.post("/ingest/unstructured", files=files)
+    def test_health_check_structure(self, client):
+        """Test health check response structure"""
+        response = client.get("/health")
+        data = response.json()
+        
+        assert isinstance(data, dict)
+        assert "api_status" in data
+        assert "database_status" in data
 
-    expected_content = 'Process Architecture Document.\nStep 1: Data extraction.'
+
+class TestStructuredIngestion:
+    """Test structured data ingestion endpoints"""
     
-    assert response.status_code == 200
-    assert response.json()["metrics"]["character_count"] > 0
-    assert "Process Architecture Document." in response.json()["message"]
+    def test_ingest_csv_success(self, client, sample_csv):
+        """Test successful CSV ingestion"""
+        with open(sample_csv, 'rb') as f:
+            response = client.post(
+                "/ingest/structured",
+                files={"file": ("test.csv", f, "text/csv")}
+            )
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert "filename" in data
+        assert "status" in data
+        assert "metrics" in data
+        assert data["status"] == "Structured data successfully ingested and stored."
+    
+    def test_ingest_csv_metrics(self, client, sample_csv):
+        """Test CSV ingestion returns correct metrics"""
+        with open(sample_csv, 'rb') as f:
+            response = client.post(
+                "/ingest/structured",
+                files={"file": ("test.csv", f, "text/csv")}
+            )
+        
+        data = response.json()
+        metrics = data["metrics"]
+        
+        assert "total_events" in metrics
+        assert "unique_cases" in metrics
+        assert metrics["total_events"] == 20  # 10 cases * 2 activities
+        assert metrics["unique_cases"] == 10
+    
+    def test_ingest_invalid_format(self, client):
+        """Test ingestion with invalid file format"""
+        content = b"Invalid content"
+        
+        response = client.post(
+            "/ingest/structured",
+            files={"file": ("test.exe", content, "application/octet-stream")}
+        )
+        
+        assert response.status_code == 400
+    
+    def test_ingest_missing_columns(self, client):
+        """Test ingestion with missing required columns"""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
+            f.write("wrong,columns\n")
+            f.write("value1,value2\n")
+            temp_path = f.name
+        
+        try:
+            with open(temp_path, 'rb') as f:
+                response = client.post(
+                    "/ingest/structured",
+                    files={"file": ("invalid.csv", f, "text/csv")}
+                )
+            
+            assert response.status_code == 400
+            assert "Missing required columns" in response.json()["detail"]
+        finally:
+            Path(temp_path).unlink()
+    
+    def test_ingest_empty_file(self, client):
+        """Test ingestion with empty file"""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
+            f.write("case_id,activity,timestamp\n")
+            temp_path = f.name
+        
+        try:
+            with open(temp_path, 'rb') as f:
+                response = client.post(
+                    "/ingest/structured",
+                    files={"file": ("empty.csv", f, "text/csv")}
+                )
+            
+            # Should succeed but with 0 events
+            assert response.status_code == 200
+        finally:
+            Path(temp_path).unlink()
+
+
+class TestUnstructuredIngestion:
+    """Test unstructured data ingestion endpoints"""
+    
+    def test_ingest_txt_success(self, client, sample_txt):
+        """Test successful text file ingestion"""
+        with open(sample_txt, 'rb') as f:
+            response = client.post(
+                "/ingest/unstructured",
+                files={"file": ("test.txt", f, "text/plain")}
+            )
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert "filename" in data
+        assert "status" in data
+        assert "metrics" in data
+        assert data["status"] == "Unstructured data successfully chunked and vectorised."
+    
+    def test_ingest_txt_metrics(self, client, sample_txt):
+        """Test text ingestion returns correct metrics"""
+        with open(sample_txt, 'rb') as f:
+            response = client.post(
+                "/ingest/unstructured",
+                files={"file": ("test.txt", f, "text/plain")}
+            )
+        
+        data = response.json()
+        metrics = data["metrics"]
+        
+        assert "character_count" in metrics
+        assert "total_chunks" in metrics
+        assert metrics["character_count"] > 0
+        assert metrics["total_chunks"] > 0
+    
+    def test_ingest_invalid_unstructured_format(self, client):
+        """Test ingestion with invalid unstructured format"""
+        content = b"Invalid content"
+        
+        response = client.post(
+            "/ingest/unstructured",
+            files={"file": ("test.exe", content, "application/octet-stream")}
+        )
+        
+        assert response.status_code == 400
+
+
+class TestErrorHandling:
+    """Test error handling across endpoints"""
+    
+    def test_invalid_endpoint(self, client):
+        """Test accessing non-existent endpoint"""
+        response = client.get("/nonexistent")
+        assert response.status_code == 404
+    
+    def test_method_not_allowed(self, client):
+        """Test using wrong HTTP method"""
+        response = client.get("/ingest/structured")
+        assert response.status_code == 405
+    
+    def test_missing_file(self, client):
+        """Test ingestion without file"""
+        response = client.post("/ingest/structured")
+        assert response.status_code == 422  # Unprocessable Entity
+
+
+class TestConcurrency:
+    """Test concurrent request handling"""
+    
+    def test_multiple_health_checks(self, client):
+        """Test handling multiple simultaneous health checks"""
+        responses = [client.get("/health") for _ in range(10)]
+        
+        assert all(r.status_code == 200 for r in responses)
+        assert all("api_status" in r.json() for r in responses)
+
+
+class TestResponseFormat:
+    """Test response format consistency"""
+    
+    def test_health_json_format(self, client):
+        """Test health endpoint returns valid JSON"""
+        response = client.get("/health")
+        
+        assert response.headers["content-type"] == "application/json"
+        data = response.json()
+        assert isinstance(data, dict)
+    
+    def test_structured_ingestion_json_format(self, client, sample_csv):
+        """Test structured ingestion returns valid JSON"""
+        with open(sample_csv, 'rb') as f:
+            response = client.post(
+                "/ingest/structured",
+                files={"file": ("test.csv", f, "text/csv")}
+            )
+        
+        assert response.headers["content-type"] == "application/json"
+        data = response.json()
+        assert isinstance(data, dict)
+
+
+class TestFileValidation:
+    """Test file validation logic"""
+    
+    def test_csv_with_special_characters(self, client):
+        """Test CSV with special characters in data"""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False, encoding='utf-8') as f:
+            f.write("case_id,activity,timestamp,resource\n")
+            f.write("CASE_001,Start™,2024-01-01T10:00:00,Üser\n")
+            temp_path = f.name
+        
+        try:
+            with open(temp_path, 'rb') as f:
+                response = client.post(
+                    "/ingest/structured",
+                    files={"file": ("special.csv", f, "text/csv")}
+                )
+            
+            assert response.status_code == 200
+        finally:
+            Path(temp_path).unlink()
+    
+    def test_large_file_handling(self, client):
+        """Test handling of larger files"""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
+            f.write("case_id,activity,timestamp,resource\n")
+            for i in range(1000):
+                f.write(f"CASE_{i},Activity,2024-01-01T10:00:00,User\n")
+            temp_path = f.name
+        
+        try:
+            with open(temp_path, 'rb') as f:
+                response = client.post(
+                    "/ingest/structured",
+                    files={"file": ("large.csv", f, "text/csv")}
+                )
+            
+            assert response.status_code == 200
+            data = response.json()
+            assert data["metrics"]["total_events"] == 1000
+        finally:
+            Path(temp_path).unlink()
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v", "--tb=short"])

@@ -1,0 +1,49 @@
+[pytest]
+# Pytest Configuration for Process Mining Platform
+
+# Test discovery patterns
+python_files = test_*.py
+python_classes = Test*
+python_functions = test_*
+
+# Test paths
+testpaths = scripts/tests
+
+# Output options
+addopts = 
+    -v
+    --tb=short
+    --strict-markers
+    --disable-warnings
+    -ra
+    --color=yes
+    --maxfail=5
+
+# Test markers
+markers =
+    unit: Unit tests
+    integration: Integration tests
+    slow: Slow running tests
+    database: Tests requiring database
+    api: API endpoint tests
+    embedding: Embedding model tests
+
+# Minimum Python version
+minversion = 3.10
+
+# Coverage options
+[coverage:run]
+source = scripts
+omit = 
+    */tests/*
+    */test_*
+    */__init__.py
+    */conftest.py
+
+[coverage:report]
+precision = 2
+show_missing = True
+skip_covered = False
+
+[coverage:html]
+directory = htmlcov
