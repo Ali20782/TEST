@@ -39,7 +39,7 @@ fi
 
 # Run tests
 echo ""
-echo "Running Milestone 1 tests..."
+echo "Running backend (Milestone 2) tests..."
 echo "=========================================="
 pytest scripts/tests/test_Milestone_2.py -v --tb=short -s
 
@@ -49,7 +49,7 @@ TEST_EXIT_CODE=$?
 echo ""
 echo "=========================================="
 if [ $TEST_EXIT_CODE -eq 0 ]; then
-    echo "✅ ALL MILESTONE 1 TESTS PASSED"
+    echo "✅ ALL TESTS PASSED"
 else
     echo "❌ SOME TESTS FAILED"
 fi

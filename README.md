@@ -1,16 +1,19 @@
-## AI-Powered Conversational Process Intelligence Platform
+# AI-Powered Conversational Process Intelligence Platform
 
 This is the repository for the **AI-Powered Conversational Process Intelligence Platform**.
 
 This project implements a modern system designed to analyse event logs using Process Mining techniques and provide conversational root cause analysis through a Retrieval-Augmented Generation (RAG) pipeline.
 
-### Key Features
+## Key Features
 
   * **Process Discovery:** Automatically generates process maps (BPMN) from raw event data using the **pm4py** library.
   * **Conversational AI:** Allows users to ask natural language questions about the process, performance, and bottlenecks.
   * **Hybrid RAG:** The platform uses a combined vector store (**PGVector**) containing embeddings of both **structured event logs** and **unstructured documentation**.
   * **Scalable Architecture:** Built on **FastAPI** (ASGI) for performance and scalability, with asynchronous task processing using **Celery/RabbitMQ**.
   * **BPMN Visualisation:** Renders interactive process maps using **bpmn-js** in the frontend.
+
+-----
+## Milestone 1: Architecture, Environment Setup and Data Prep
 
 ### System Architecture
 
@@ -41,7 +44,7 @@ For a complete breakdown of component choices, data flow, and scalability design
 
 Check the following link to see the current state of the datasets (raw, clean, and synthetic)
 
-  * **Link:** [https://www.dropbox.com/scl/fo/ipl2xfe5tjn9zdebvkfu4/ADbXh4ZAeYnDbniQEBlwn](https://www.google.com/search?q=https://www.dropbox.com/scl/fo/ipl2xfe5tjn9zdebvkfu4/ADbXh4ZAeYnDbniQEBlwn)\_Y?rlkey=iykr2nj3dg5r2edgt1w5nzoln\&st=fju42nws\&dl=0
+  * **Link:** [https://www.dropbox.com/scl/fo/ipl2xfe5tjn9zdebvkfu4/ADbXh4ZAeYnDbniQEBlwn](https://www.google.com/search?q=https://www.dropbox.com/scl/fo/ipl2xfe5tjn9zdebvkfu4/ADbXh4ZAeYnDbniQEBlwn\_Yrlkey=iykr2nj3dg5r2edgt1w5nzoln\&st=fju42nws\&dl=0)
 
 ### Repository Structure
 
@@ -85,15 +88,15 @@ AI-Powered-Conversational-Process-Int-Platform/
 
 -----
 
-## Getting Started (Milestone 1: Environment Setup and Data Prep)
+### Environment Setup and Data Prep
 
 This milestone focuses on setting up the core development environment and preparing the necessary datasets.
 
-### Prerequisites
+#### Prerequisites
 
   * Python (3.10 or newer)
 
-### Setup
+#### Setup
 
 1.  **Clone the Repository:**
 
@@ -127,7 +130,7 @@ This milestone focuses on setting up the core development environment and prepar
     python -m "scripts.data_scripts.dataset_validation"
     ```
 
-    (The validation results, including process maps and a report, will be saved to the `/docs/data_validation` directory.)
+    (The validation results, including process maps and a report, will be saved to the **/docs/data_validation** directory.)
 
 -----
 
@@ -217,27 +220,8 @@ Open browser: http://localhost:8000/docs
 #### Run Milestone 2 Tests
 
 ```bash
-# Make test script executable
-chmod +x scripts/tests/run_milestone1_tests.sh
-
-# Run tests
-./scripts/tests/run_milestone1_tests.sh
-```
-
-#### Manual Testing with curl
-
-**Test structured ingestion:**
-
-```bash
-curl -X POST "http://localhost:8000/ingest/structured" \
-  -F "file=@data/clean/BPI_2012_clean.csv"
-```
-
-**Test unstructured ingestion:**
-
-```bash
-curl -X POST "http://localhost:8000/ingest/unstructured" \
-  -F "file=@docs/architecture.md"
+# Use Git Bash
+./scripts/tests/run_tests.sh
 ```
 
 ### Troubleshooting

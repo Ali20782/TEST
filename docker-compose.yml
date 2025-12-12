@@ -25,6 +25,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: process_mining_backend
     container_name: process_mining_backend
     restart: always
     environment:
@@ -50,6 +51,7 @@ services:
 volumes:
   pg_data:
     driver: local
+    name: "db_data_prod"
 
 networks:
   process_mining_network:
