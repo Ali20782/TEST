@@ -1,71 +1,106 @@
+"""
+Pytest Configuration and Shared Fixtures
+Place this file at: scripts/tests/conftest.py
+"""
+
 import pytest
-from starlette.testclient import TestClient
-from fastapi import FastAPI
-from src.api.ingestion_router import router # Import the router we just created
-from io import BytesIO
-from docx import Document
+import os
+import sys
+from pathlib import Path
 
-# --- FastAPI App Fixture ---
-# Assuming your main app file is accessible
-@pytest.fixture(scope="module")
-def app():
-    """Defines the FastAPI application for testing."""
-    app = FastAPI()
-    app.include_router(router)
-    return app
+# Add project root to Python path - CRITICAL for imports to work
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
 
-@pytest.fixture(scope="module")
-def client(app):
-    """Provides a TestClient for making requests to the FastAPI app."""
-    with TestClient(app) as c:
-        yield c
+# Verify the path was added
+print(f"Added to sys.path: {project_root}")
 
-@pytest.fixture(scope="session")
-def project_id():
-    """Standard project ID fixture."""
-    return "TEST_PROJECT_ID_42"
+# Test markers
+pytest_markers = {
+    'unit': 'Unit tests',
+    'integration': 'Integration tests',
+    'slow': 'Slow running tests',
+    'database': 'Tests requiring database',
+    'api': 'API endpoint tests',
+    'embedding': 'Embedding model tests'
+}
 
-# --- Mock Data Fixtures for File Uploads ---
 
-@pytest.fixture(scope="session")
-def mock_csv_file():
-    """Creates a mock in-memory CSV file (Structured Data)."""
-    # Required columns: case_id, activity, timestamp
-    content = (
-        "case_id,activity,timestamp,resource\n"
-        "C1,Start,2025-01-01 10:00:00,UserA\n"
-        "C1,TaskA,2025-01-01 10:30:00,UserA\n"
-        "C1,End,2025-01-01 11:00:00,UserB\n"
-        "C2,Start,2025-01-02 12:00:00,UserC\n"
-    ).encode('utf-8')
-    return ("valid_log.csv", BytesIO(content), "text/csv")
-
-@pytest.fixture(scope="session")
-def mock_invalid_csv_file():
-    """Creates a mock CSV file missing required columns."""
-    content = (
-        "id,event_name,time\n" # Missing case_id, activity, timestamp
-        "1,Start,2025-01-01 10:00:00\n"
-    ).encode('utf-8')
-    return ("invalid_log.csv", BytesIO(content), "text/csv")
+def pytest_configure(config):
+    """Configure pytest with custom markers"""
+    for marker, description in pytest_markers.items():
+        config.addinivalue_line("markers", f"{marker}: {description}")
 
 
 @pytest.fixture(scope="session")
-def mock_txt_file():
-    """Creates a mock in-memory TXT file (Unstructured Data)."""
-    content = "This is a document about process variant analysis. It is unstructured data for RAG."
-    return ("valid_doc.txt", BytesIO(content.encode('utf-8')), "text/plain")
+def test_data_dir():
+    """Test data directory"""
+    return Path(__file__).parent / "test_data"
+
 
 @pytest.fixture(scope="session")
-def mock_docx_file():
-    """Creates a mock in-memory DOCX file (Unstructured Data)."""
-    # Use the docx library to create a minimal valid DOCX file
-    document = Document()
-    document.add_paragraph('This is the first paragraph of the DOCX document.')
-    document.add_paragraph('The second paragraph contains keywords like pgvector and fastapi.')
+def sample_event_data():
+    """Sample event log data"""
+    return {
+        'case_id': ['C1', 'C1', 'C2', 'C2'],
+        'activity': ['Start', 'End', 'Start', 'End'],
+        'timestamp': [
+            '2024-01-01T10:00:00',
+            '2024-01-01T11:00:00',
+            '2024-01-01T10:30:00',
+            '2024-01-01T11:30:00'
+        ],
+        'resource': ['User1', 'User1', 'User2', 'User2']
+    }
+
+
+@pytest.fixture(scope="session")
+def api_base_url():
+    """Base URL for API tests"""
+    return os.getenv('API_BASE_URL', 'http://localhost:8000')
+
+
+@pytest.fixture(autouse=True)
+def reset_test_env():
+    """Reset test environment before each test"""
+    # Clear any test-specific environment variables
+    test_vars = [k for k in os.environ.keys() if k.startswith('TEST_')]
+    for var in test_vars:
+        os.environ.pop(var, None)
     
-    file_stream = BytesIO()
-    document.save(file_stream)
-    file_stream.seek(0)
+    yield
     
-    return ("valid_doc.docx", file_stream, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+    # Cleanup after test
+    pass
+
+
+# Pytest configuration options
+def pytest_addoption(parser):
+    """Add custom command line options"""
+    parser.addoption(
+        "--slow",
+        action="store_true",
+        default=False,
+        help="Run slow tests"
+    )
+    parser.addoption(
+        "--integration-only",
+        action="store_true",
+        default=False,
+        help="Run only integration tests"
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    """Modify test collection based on command line options"""
+    if not config.getoption("--slow"):
+        skip_slow = pytest.mark.skip(reason="need --slow option to run")
+        for item in items:
+            if "slow" in item.keywords:
+                item.add_marker(skip_slow)
+    
+    if config.getoption("--integration-only"):
+        skip_unit = pytest.mark.skip(reason="--integration-only specified")
+        for item in items:
+            if "integration" not in item.keywords:
+                item.add_marker(skip_unit)
