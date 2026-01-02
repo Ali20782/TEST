@@ -5,11 +5,11 @@ Comprehensive file processing with validation, transformation, and error handlin
 
 import pandas as pd
 import io
-from docx import Document
 from typing import Tuple, Dict, Any, List
 import chardet
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
+from docx import Document
 
 logger = logging.getLogger(__name__)
 
@@ -27,13 +27,13 @@ OPTIONAL_COLUMNS = {
 
 def detect_encoding(file_bytes: bytes) -> str:
     """
-    Detect file encoding using chardet.
-    
-    Args:
-        file_bytes: Raw file bytes
+        Detect file encoding using chardet.
         
-    Returns:
-        Detected encoding string
+        Args:
+            file_bytes: Raw file bytes
+            
+        Returns:
+            Detected encoding string
     """
     result = chardet.detect(file_bytes)
     return result['encoding'] or 'utf-8'
@@ -41,15 +41,15 @@ def detect_encoding(file_bytes: bytes) -> str:
 
 def validate_event_log_schema(df: pd.DataFrame) -> Tuple[bool, List[str]]:
     """
-    Validate that dataframe has required event log columns.
-    
-    Args:
-        df: DataFrame to validate
+        Validate that dataframe has required event log columns.
         
-    Returns:
-        Tuple of (is_valid, missing_columns)
+        Args:
+            df: DataFrame to validate
+            
+        Returns:
+            Tuple of (is_valid, missing_columns)
     """
-    # Normalize column names for comparison
+    # Normalise column names for comparison
     df_columns = [col.lower().replace(' ', '_') for col in df.columns]
     required_lower = [col.lower() for col in REQUIRED_COLUMNS]
     
@@ -58,15 +58,15 @@ def validate_event_log_schema(df: pd.DataFrame) -> Tuple[bool, List[str]]:
     return len(missing) == 0, missing
 
 
-def sanitize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+def sanitise_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Clean and sanitize dataframe.
-    
-    Args:
-        df: Input dataframe
+        Clean and sanitize dataframe.
         
-    Returns:
-        Sanitized dataframe
+        Args:
+            df: Input dataframe
+            
+        Returns:
+            Sanitized dataframe
     """
     # Remove completely empty rows
     df = df.dropna(how='all')
@@ -95,13 +95,13 @@ def sanitize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
 def transform_to_canonical_format(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Transform dataframe to canonical event log format.
-    
-    Args:
-        df: Input dataframe
+        Transform dataframe to canonical event log format.
         
-    Returns:
-        Transformed dataframe with canonical schema
+        Args:
+            df: Input dataframe
+            
+        Returns:
+            Transformed dataframe with canonical schema
     """
     # Normalize column names
     df.columns = [col.lower().replace(' ', '_') for col in df.columns]
@@ -134,17 +134,17 @@ def transform_to_canonical_format(df: pd.DataFrame) -> pd.DataFrame:
 
 def process_structured_data(file_bytes: bytes, filename: str) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """
-    Process structured file (CSV/XLSX) with comprehensive validation and transformation.
-    
-    Args:
-        file_bytes: Raw file bytes
-        filename: Name of the file
+        Process structured file (CSV/XLSX) with comprehensive validation and transformation.
         
-    Returns:
-        Tuple of (dataframe, metrics)
-        
-    Raises:
-        ValueError: If file format is unsupported or required columns are missing
+        Args:
+            file_bytes: Raw file bytes
+            filename: Name of the file
+            
+        Returns:
+            Tuple of (dataframe, metrics)
+            
+        Raises:
+            ValueError: If file format is unsupported or required columns are missing
     """
     try:
         # Determine file type
@@ -171,7 +171,7 @@ def process_structured_data(file_bytes: bytes, filename: str) -> Tuple[pd.DataFr
             raise ValueError(f"Missing required columns: {', '.join(missing_cols)}")
         
         # Sanitize data
-        df = sanitize_dataframe(df)
+        df = sanitise_dataframe(df)
         
         # Transform to canonical format
         df = transform_to_canonical_format(df)
@@ -208,17 +208,34 @@ def process_structured_data(file_bytes: bytes, filename: str) -> Tuple[pd.DataFr
         raise
 
 
-def chunk_document(content: str, chunk_size: int = 500, overlap: int = 100) -> List[str]:
+def format_event_for_embedding(row: pd.Series) -> str:
     """
-    Split text into chunks with overlap for better context preservation.
+    Generates a rich natural language description using ALL available columns.
+    Enables semantic search to work across any business domain automatically.
+    """
+    core = {'case_id', 'activity', 'timestamp', 'id', 'embedding', 'created_at', 'log_file'}
     
-    Args:
-        content: Text content to chunk
-        chunk_size: Maximum characters per chunk
-        overlap: Number of characters to overlap between chunks
+    text = f"Case {row.get('case_id', 'N/A')}: The activity '{row.get('activity', 'N/A')}' "
+    if 'timestamp' in row and pd.notnull(row['timestamp']):
+        text += f"occurred at {row['timestamp']}. "
+
+    # Dynamically append all other attributes (Industry/Business Context)
+    details = []
+    for col, value in row.items():
+        if col not in core and pd.notnull(value) and str(value).lower() not in ['nan', 'none', '']:
+            clean_col = col.replace('_', ' ')
+            val_str = f"{value:.2f}" if isinstance(value, (float, int)) and not isinstance(value, bool) else str(value)
+            details.append(f"{clean_col} is {val_str}")
+    
+    if details:
+        text += "Context: " + ", ".join(details) + "."
         
-    Returns:
-        List of text chunks
+    return text
+
+
+def chunk_document(content: str, chunk_size: int = 1000, overlap: int = 200) -> List[str]:
+    """
+        Optimised chunking for technical process documentation.
     """
     if len(content) <= chunk_size:
         return [content]
@@ -229,34 +246,48 @@ def chunk_document(content: str, chunk_size: int = 500, overlap: int = 100) -> L
     while start < len(content):
         end = start + chunk_size
         
-        # Try to break at sentence boundary
         if end < len(content):
-            # Look for sentence endings
-            for sep in ['. ', '.\n', '! ', '?\n']:
-                last_sep = content[start:end].rfind(sep)
-                if last_sep > chunk_size * 0.7:  # Only if we find separator in last 30%
-                    end = start + last_sep + len(sep)
+            # 1. Search for best boundary in the 'overlap' zone
+            search_zone = content[end - 100 : end + 20] # Look slightly ahead/behind
+            
+            # Priority: Paragraph > Sentence > Space
+            best_break = -1
+            for sep in ['\n\n', '\n', '. ', ' ']:
+                idx = search_zone.rfind(sep)
+                if idx != -1:
+                    best_break = (end - 100) + idx + len(sep)
                     break
+            
+            if best_break != -1:
+                end = best_break
+
+        chunk = content[start:end].strip()
+        if chunk: # Avoid empty chunks
+            chunks.append(chunk)
+            
+        # Move start point back by overlap
+        start = end - overlap
         
-        chunks.append(content[start:end].strip())
-        start = end - overlap if end < len(content) else end
-    
+        # Safety break to prevent infinite loops if end doesn't progress
+        if start >= len(content) or end >= len(content):
+            break
+            
     return chunks
 
 
 def extract_text_from_unstructured(file_bytes: bytes, filename: str) -> str:
     """
-    Extract text content from unstructured files (TXT/DOCX/PDF).
-    
-    Args:
-        file_bytes: Raw file bytes
-        filename: Name of the file
+        Extract text content from unstructured files (TXT/DOCX/PDF).
         
-    Returns:
-        Extracted text content
-        
-    Raises:
-        ValueError: If file format is unsupported
+        Args:
+            file_bytes: Raw file bytes
+            filename: Name of the file
+            
+        Returns:
+            Extracted text content
+            
+        Raises:
+            ValueError: If file format is unsupported
     """
     try:
         if filename.lower().endswith(('.txt', '.TXT')):
@@ -304,20 +335,20 @@ def extract_text_from_unstructured(file_bytes: bytes, filename: str) -> str:
 
 def process_unstructured_data(file_bytes: bytes, filename: str) -> Tuple[str, List[str], Dict[str, Any]]:
     """
-    Process unstructured file with text extraction and chunking.
-    
-    Args:
-        file_bytes: Raw file bytes
-        filename: Name of the file
+        Process unstructured file with text extraction and chunking.
         
-    Returns:
-        Tuple of (full_text, chunks, metrics)
+        Args:
+            file_bytes: Raw file bytes
+            filename: Name of the file
+            
+        Returns:
+            Tuple of (full_text, chunks, metrics)
     """
     # Extract text
     content = extract_text_from_unstructured(file_bytes, filename)
     
     # Create chunks
-    chunks = chunk_document(content, chunk_size=500, overlap=100)
+    chunks = chunk_document(content) #Use optimised default (1000 size, 200 overlap)
     
     # Calculate metrics
     metrics = {
@@ -332,14 +363,14 @@ def process_unstructured_data(file_bytes: bytes, filename: str) -> Tuple[str, Li
 
 def validate_file_size(file_bytes: bytes, max_size_mb: int = 100) -> bool:
     """
-    Validate file size is within limits.
-    
-    Args:
-        file_bytes: Raw file bytes
-        max_size_mb: Maximum allowed size in MB
+        Validate file size is within limits.
         
-    Returns:
-        True if valid, False otherwise
+        Args:
+            file_bytes: Raw file bytes
+            max_size_mb: Maximum allowed size in MB
+            
+        Returns:
+            True if valid, False otherwise
     """
     size_mb = len(file_bytes) / (1024 * 1024)
     return size_mb <= max_size_mb
@@ -347,14 +378,14 @@ def validate_file_size(file_bytes: bytes, max_size_mb: int = 100) -> bool:
 
 def get_file_info(file_bytes: bytes, filename: str) -> Dict[str, Any]:
     """
-    Get comprehensive file information.
-    
-    Args:
-        file_bytes: Raw file bytes
-        filename: Name of the file
+        Get comprehensive file information.
         
-    Returns:
-        Dictionary with file information
+        Args:
+            file_bytes: Raw file bytes
+            filename: Name of the file
+            
+        Returns:
+            Dictionary with file information
     """
     return {
         "filename": filename,
@@ -362,5 +393,5 @@ def get_file_info(file_bytes: bytes, filename: str) -> Dict[str, Any]:
         "size_mb": round(len(file_bytes) / (1024 * 1024), 2),
         "extension": filename.split('.')[-1].lower() if '.' in filename else None,
         "encoding": detect_encoding(file_bytes) if filename.endswith(('.txt', '.csv')) else None,
-        "processed_at": datetime.utcnow().isoformat()
+        "processed_at": datetime.now(timezone.utc).isoformat()
     }

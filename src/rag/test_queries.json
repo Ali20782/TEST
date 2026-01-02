@@ -1,0 +1,52 @@
+[
+  {
+    "query": "What is the status of application 173688?",
+    "expected_cases": ["173688"],
+    "description": "Direct Case ID extraction test."
+  },
+  {
+    "query": "Show me events related to case 173691 and 173694.",
+    "expected_cases": ["173691", "173694"],
+    "description": "Multiple Case ID extraction test."
+  },
+  {
+    "query": "Which cases were handled by resource 112?",
+    "expected_cases": ["173688", "173691", "173694", "173697", "173700", "173703", "173706", "173709", "173712", "173715", "173718", "173721"],
+    "description": "Resource entity filtering test (User 112 is the initial submitter)."
+  },
+  {
+    "query": "Identify cases where the activity O_CANCELLED occurred.",
+    "expected_cases": ["173691", "173694"],
+    "description": "Specific activity name filtering test."
+  },
+  {
+    "query": "Find the highest cost cases in the system.",
+    "expected_cases": ["173715", "173712"],
+    "description": "Semantic/Business logic test for high value (45000 and 30000)."
+  },
+  {
+    "query": "Which applications were declined (A_DECLINED)?",
+    "expected_cases": ["173697", "173700", "173706", "173715"],
+    "description": "Process outcome filtering test."
+  },
+  {
+    "query": "Show me the process flow for user 10862.",
+    "expected_cases": ["173688", "173691", "173718"],
+    "description": "Resource-to-Case mapping test."
+  },
+  {
+    "query": "What happened to case 173703?",
+    "expected_cases": ["173703"],
+    "description": "Single ID lookup for a cancelled case."
+  },
+  {
+    "query": "Find cases with the activity W_Nabellen offertes.",
+    "expected_cases": ["173688", "173691", "173694", "173715", "173718", "173721"],
+    "description": "Long-running workflow activity search."
+  },
+  {
+    "query": "Which cases involve a cost of 15000?",
+    "expected_cases": ["173697", "173718"],
+    "description": "Numeric attribute filtering test."
+  }
+]

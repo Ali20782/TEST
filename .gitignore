@@ -31,3 +31,6 @@ pg_data/
 .idea/      # PyCharm
 .vscode/    # VS Code
 .DS_Store
+
+# Test Environments
+**/TEST/

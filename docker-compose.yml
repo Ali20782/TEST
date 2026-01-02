@@ -34,6 +34,18 @@ services:
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       DB_NAME: ${DB_NAME}
+      EMBEDDING_BATCH_SIZE: 128  # Larger batches for efficiency
+    deploy:
+      resources:
+        limits:
+          memory: 8G  # Increased memory limit
+        reservations:
+          memory: 4G
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    stop_grace_period: 300s # Add timeout
     ports:
       - "8000:8000"
     depends_on:

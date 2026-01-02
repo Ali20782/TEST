@@ -53,10 +53,11 @@ The project is organised into the following top-level directories:
 | Directory | Purpose | Key Contents |
 | :--- | :--- | :--- |
 | **/data** | **Raw, Clean, and Synthetic Data Storage** | `Not pushed to repo` Contains original raw XES/CSV files, intermediate cleaning files, and final event logs used for analysis (e.g., BPI\_2012\_clean.csv, synthetic\_invoice\_process.csv). |
-| **/scripts** | **Core Execution Code** | Contains all the Python scripts for data handling, process mining, RAG pipeline setup, and API backend services (e.g., data\_transformation.py, dataset\_validation.py, api\_server.py). |
+| **/src** | **Core Execution Code** | Contains all the Python scripts for data handling, process mining, RAG pipeline setup, and API backend services (e.g., data\_transformation.py, dataset\_validation.py, api\_server.py). |
 | **/docs** | **Project Documentation** | Stores all architectural diagrams, detailed technical documentation, validation results, and future planning documents (e.g., architecture.md). |
+| **/tests** | **Testing Scripts** | Contains all testing scripts such as pytest test cases.|
 
-### Folder Structure
+### Project Structure
 
 ```
 AI-Powered-Conversational-Process-Int-Platform/
@@ -67,8 +68,7 @@ AI-Powered-Conversational-Process-Int-Platform/
 │   │   └── ...
 │   └── synthetic/ (All synthetic data)
 │       └── ...
-├── scripts/ (All code files is stored ehre)
-|   ├── tests/ (Contains pytest scripts)
+├── src/ (All main code files are stored here)
 |   ├── data_scripts/ (scripts for cleaning and generating real/synthetic data)
 │   ├── ...
 ├── docs/ (Documentation and reports for the project)
@@ -76,6 +76,8 @@ AI-Powered-Conversational-Process-Int-Platform/
 |   ├── data_validation/
 |   |    └── ...
 │   └── ...
+├── tests/ (Contains pytest scripts)
+│   ├── ...
 ├── .venv/ (virtual environment)
 ├── .env (Environment variables)
 ├── .gitignore
@@ -121,13 +123,13 @@ This milestone focuses on setting up the core development environment and prepar
 
     ```bash
     # 1. Transform raw data into clean event logs
-    python -m "scripts.data_scripts.data_transformation"
+    python -m "src.data_scripts.data_transformation"
 
     # 2. Run synthetic data generation
-    python -m "scripts.data_scripts.synthetic_data_generator"
+    python -m "src.data_scripts.synthetic_data_generator"
 
     # 3. Run process mining validation on all datasets
-    python -m "scripts.data_scripts.dataset_validation"
+    python -m "src.data_scripts.dataset_validation"
     ```
 
     (The validation results, including process maps and a report, will be saved to the **/docs/data_validation** directory.)
@@ -221,7 +223,7 @@ Open browser: http://localhost:8000/docs
 
 ```bash
 # Use Git Bash
-./scripts/tests/run_tests.sh
+./tests/run_tests.sh
 ```
 
 ### Troubleshooting

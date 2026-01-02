@@ -5,8 +5,11 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, UploadFile, File, HTTPException, status
 from fastapi.responses import JSONResponse
 import psycopg2
+from fastapi import BackgroundTasks
 
-from scripts import database, data_processing_service, embedding_service
+from src.rag.rag_service import ProcessRAGService
+from src.embedding_service import get_model
+from src import database, data_processing_service, embedding_service
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -88,7 +91,8 @@ async def root():
             "health": "/health",
             "docs": "/docs",
             "ingest_structured": "/ingest/structured",
-            "ingest_unstructured": "/ingest/unstructured"
+            "ingest_unstructured": "/ingest/unstructured",
+            "ask_query": "/query"
         }
     }
 
@@ -97,44 +101,62 @@ async def root():
 # ----------------------------------------------------
 
 @app.post("/ingest/structured", summary="Ingest Structured Data (CSV/XLSX)")
-async def ingest_structured_data(file: UploadFile = File(...)):
+async def ingest_structured_data(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...)
+):
     """
     Ingest structured event log files (CSV or XLSX)
-    
-    Required columns: case_id, activity, timestamp
-    Optional columns: resource, cost, location, product_type
+    For large files (>100K rows), processing happens in background
     """
     try:
         logger.info(f"Receiving file: {file.filename}")
         
-        # Read file
+        # Read and validate file
         file_bytes = await file.read()
-        
-        # Process structured data
         df, metrics = data_processing_service.process_structured_data(
             file_bytes, 
             file.filename
         )
         
-        # Store in database
-        conn = database.get_db_connection()
-        try:
-            embedding_service.store_structured_log(conn, df, file.filename)
-            conn.close()
-        except Exception as e:
-            conn.close()
-            raise
-        
-        logger.info(f"✅ Successfully processed {file.filename}")
-        
-        return JSONResponse(
-            status_code=status.HTTP_200_OK,
-            content={
-                "filename": file.filename,
-                "status": "Structured data successfully ingested and stored.",
-                "metrics": metrics
-            }
-        )
+        # Check if large file
+        if len(df) > 100000:
+            # Schedule background processing
+            background_tasks.add_task(
+                process_large_file_background,
+                df, 
+                file.filename
+            )
+            
+            return JSONResponse(
+                status_code=status.HTTP_202_ACCEPTED,
+                content={
+                    "filename": file.filename,
+                    "status": "Processing in background (large file)",
+                    "metrics": metrics,
+                    "message": "Check /ingestion/status endpoint for progress"
+                }
+            )
+        else:
+            # Process immediately for small files
+            conn = database.get_db_connection()
+            try:
+                embedding_service.store_structured_log(conn, df, file.filename)
+                conn.close()
+            except Exception as e:
+                conn.close()
+                raise
+            
+            logger.info(f"✅ Successfully processed {file.filename}")
+            
+            return JSONResponse(
+                status_code=status.HTTP_200_OK,
+                content={
+                    "filename": file.filename,
+                    "status": "Structured data successfully ingested and stored.",
+                    "metrics": metrics
+                }
+            )
         
     except ValueError as e:
         logger.error(f"Validation error: {e}")
@@ -145,6 +167,16 @@ async def ingest_structured_data(file: UploadFile = File(...)):
             status_code=500, 
             detail=f"Internal server error: {str(e)}"
         )
+
+def process_large_file_background(df, filename):
+    """Background task for large file processing"""
+    try:
+        conn = database.get_db_connection()
+        embedding_service.store_structured_log(conn, df, filename)
+        conn.close()
+        logger.info(f"✅ Background processing complete for {filename}")
+    except Exception as e:
+        logger.error(f"Background processing failed: {e}")
 
 @app.post("/ingest/unstructured", summary="Ingest Unstructured Data (TXT/DOCX)")
 async def ingest_unstructured_data(file: UploadFile = File(...)):
@@ -209,3 +241,30 @@ async def ingest_unstructured_data(file: UploadFile = File(...)):
             status_code=500, 
             detail=f"Internal server error: {str(e)}"
         )
+    
+
+"""
+Initialise the RAG service (outside the route if needed for performance in the future)
+or inside a dependency injection block.
+"""
+@app.post("/query", summary="Ask questions about process data")
+async def query_process_data(question: str, top_k: int = 5):
+    """
+        RAG Endpoint: Use Gemini/GPT to answer questions based on 
+        ingested logs and documents.
+    """
+    try:
+        conn = database.get_db_connection()
+        # Generate embedding for the question
+        model = get_model()
+        query_vector = model.encode([question])[0].tolist()
+        
+        # Run RAG Pipeline
+        rag_service = ProcessRAGService(conn)
+        result = rag_service.query(question, query_vector)
+        
+        conn.close()
+        return result
+    except Exception as e:
+        logger.error(f"Query error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
